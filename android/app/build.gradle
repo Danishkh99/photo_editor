@@ -70,10 +70,4 @@ flutter {
 }
 
 dependencies {
-    implementation('org.tensorflow:tflite-flutter-helper:0.3.1') {
-        // Assuming 0.3.1 is the required version
-        // Override the Kotlin plugin version here
-        // (replace with the actual version required by tflite_flutter_helper)
-        force = true
-    }
 }

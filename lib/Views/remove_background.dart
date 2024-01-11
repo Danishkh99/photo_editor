@@ -8,7 +8,6 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:tflite_flutter/tflite_flutter.dart' as tfl;
 import 'package:image/image.dart' as img; // For image loading and resizing
-import 'package:tflite_flutter_helper/tflite_flutter_helper.dart';
 
 class RemoveBackground extends StatefulWidget {
   const RemoveBackground({super.key});
@@ -22,14 +21,15 @@ class _RemoveBackgroundState extends State<RemoveBackground> {
 
   void loadModel() async {
     final interpreter = await tfl.Interpreter.fromAsset('models/1.tflite');
-// Get model input and output shapes
-    final inputShape = interpreter.getInputTensor(0).shape;
-    final outputShape = interpreter.getOutputTensor(0).shape;
-    var output =
-        List.filled(outputShape[1] * outputShape[2], 0.0, growable: false);
 
-// Allocate tensors
-    interpreter.allocateTensors();
+// Get model input and output shapes
+//     final inputShape = interpreter.getInputTensor(0).shape;
+//     final outputShape = interpreter.getOutputTensor(0).shape;
+//     // var output =
+//     //     List.filled(outputShape[1] * outputShape[2], 0.0, growable: false);
+//
+// // Allocate tensors
+//     interpreter.allocateTensors();
 
 // Allocate memory for input and output tensors
 //       var input = List.filled(
@@ -45,17 +45,21 @@ class _RemoveBackgroundState extends State<RemoveBackground> {
     // final imageBytes = await File("assets/images/ali.jpg").readAsBytes();
     ByteData bytes = await rootBundle.load('assets/images/ali.jpg');
 
-    // Uint8List imageBytes = bytes.buffer.asUint8List();
+    var recognitions = await tfl.TfLiteInterpreter;
 
-    final image = img.decodeImage(bytes.buffer.asUint8List());
+    Uint8List imageBytes = bytes.buffer.asUint8List();
 
-    final inputTensor =
-        imageToTensor(image!); // Implement imageToTensor function
+    img.Image? image1 = img.decodeImage(imageBytes);
+    // final file = File('assets/images/ali.jpg');
 
-    final outputTensor = List<double>.filled(1000, 0.0); // Fill with zeros
-    interpreter.run(inputTensor, outputTensor);
+    var input = await _preprocessImage(image1);
+    var output = List.filled(1000, 0);
 
-//     imglib.Image? image1 = imglib.decodeImage(imageBytes);
+    print(input.shape);
+
+    // final output = List.filled(1, List.filled(1, List.filled(1, 0.0)));
+    // interpreter.run(input, output);
+
 //
 // // Get model input shape
 //
@@ -84,7 +88,33 @@ class _RemoveBackgroundState extends State<RemoveBackground> {
     // return output;
   }
 
-  List<double> imageToTensor(img.Image image) {
+  Future<List> _preprocessImage(img.Image? image) async {
+    // Load image
+    // img.Image? imageTemp = img.decodeImage(await image.readAsBytes());
+    if (image == null) return [];
+
+    // Resize the image to the size your model expects
+    img.Image resizedImg = img.copyResize(image, width: 224, height: 224);
+
+    // Convert image to float32 and normalize pixel values if necessary
+    var imageBytes = resizedImg.getBytes();
+    var imageBuffer = Float32List(1 * 224 * 224 * 3); // Image size and channels
+    int bufferIndex = 0;
+    // Assuming RGB format and converting to normalized float32
+    for (int i = 0; i < imageBytes.length; i += 3) {
+      imageBuffer[bufferIndex++] = imageBytes[i] / 255.0; // R
+      imageBuffer[bufferIndex++] = imageBytes[i + 1] / 255.0; // G
+      imageBuffer[bufferIndex++] = imageBytes[i + 2] / 255.0; // B
+    }
+
+// Reshape to the format that the model expects [1, 224, 224, 3]
+    var reshapedBuffer = imageBuffer.reshape([1, 224, 224, 3]);
+
+    return reshapedBuffer; // Reshape to the format that the model expects
+  }
+
+  //
+  List<List<List<List<int>>>> imageToTensor(img.Image image) {
     // Define input size expected by MobileNet V2 (usually 224x224)
     const inputSize = 224;
 
@@ -96,17 +126,18 @@ class _RemoveBackgroundState extends State<RemoveBackground> {
     // List<int> imageData = img.getPixelData(resizedImage);
     List<int> imageData = resizedImage.getBytes().buffer.asInt32List();
     // Normalize pixel values to the range of 0-1
-    List<double> normalizedImageData =
-        imageData.map((value) => value / 255.0).toList();
-
-    // final inputTensor = ImageToTensor(normalizedImageData).toTensor();
+    // List<double> normalizedImageData =
+    //     imageData.map((value) => value / 255.0).toList();
+    final tensor =
+        List.filled(1, List.filled(224, List.filled(224, imageData)));
+    // final buffer = Float32List.view(tensor as ByteBuffer).buffer;
 
     // Create a 4D tensor with shape [1, inputSize, inputSize, 3]
-    TensorBuffer buffer = TensorBuffer.createFixedSize(
-        [1, inputSize, inputSize, 3], tfl.TfLiteType.float32);
-    buffer.loadList(normalizedImageData, shape: [1, inputSize, inputSize, 3]);
+    // TensorBuffer buffer = TensorBuffer.createFixedSize(
+    //     [1, inputSize, inputSize, 3], TfLiteType.float32);
+    // buffer.loadList(normalizedImageData, byteOffset: 0);
 
-    return buffer.getDoubleList();
+    return tensor;
   }
 
   // void postProcessing(List<dynamic> input, List<dynamic> output) async {
